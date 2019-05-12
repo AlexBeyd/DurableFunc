@@ -3,13 +3,14 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using System.Net.Http;
-using Microsoft.AspNetCore.Http;
 using System.Linq;
 using System.Net;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.WebApiCompatShim;
 
 namespace ProcessVideoStarter
 {
-	public static class ProcessVideoStarter
+    public static class ProcessVideoStarter
 	{
 		[FunctionName("ProcessVideoStarter")]
 		public static async Task<HttpResponseMessage> Run(
@@ -17,30 +18,43 @@ namespace ProcessVideoStarter
 			[OrchestrationClient] DurableOrchestrationClient starter,
 			ILogger log)
 		{
-			log.LogInformation($"C# HTTP trigger function processed a request.");
+            HttpRequestMessageFeature hreqmf = new HttpRequestMessageFeature(req.HttpContext);
+            HttpRequestMessage httpRequestMessage = hreqmf.HttpRequestMessage;
 
-			// parse query parameter
-			string video = req.GetQueryParameterDictionary()
-				.FirstOrDefault(q => string.Compare(q.Key, "video", true) == 0)
-				.Value;
+            log.LogInformation($"C# HTTP trigger function processed a request.");
 
-			// Get request body
-			dynamic data = req.Body;
+            // parse query parameter
+            string video = httpRequestMessage.RequestUri.ParseQueryString()["video"];
+                
+                //..GetQueryNameValuePairs
+
+                //System.Web.HttpUtility.ParseQueryString(req.RequestUri.Query);
+
+                //req.Query[""] ()
+                //.FirstOrDefault(q => string.Compare(q.Key, "video", true) == 0)
+                //.Value;
+
+            // Get request body
+            dynamic data = req;
 
 			// Set name to query string or body data
 			video = video ?? data?.video;
 
 			if (video == null)
 			{
-				return new HttpResponseMessage(HttpStatusCode.BadRequest);
-				//"Please pass the video location the query string or in the request body");
+                var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
+                {
+                    Content = new StringContent("Please pass the video location the query string or in the request body")
+                };
+                return response;
+
 			}
 
 			log.LogInformation($"About to start orchestration for {video}");
 
 			var orchestrationId = await starter.StartNewAsync("O_ProcessVideo", video);
 
-			return starter.CreateCheckStatusResponse(new HttpRequestMessage(new HttpMethod(req.Method), req.Path), orchestrationId);
+			return starter.CreateCheckStatusResponse(httpRequestMessage, orchestrationId);
 		}
 	}
 }
