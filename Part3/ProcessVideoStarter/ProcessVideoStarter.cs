@@ -11,13 +11,13 @@ using Microsoft.AspNetCore.Mvc.WebApiCompatShim;
 namespace ProcessVideoStarter
 {
     public static class ProcessVideoStarter
-	{
-		[FunctionName("ProcessVideoStarter")]
-		public static async Task<HttpResponseMessage> Run(
-			[HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
-			[OrchestrationClient] DurableOrchestrationClient starter,
-			ILogger log)
-		{
+    {
+        [FunctionName("ProcessVideoStarter")]
+        public static async Task<HttpResponseMessage> Run(
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+            [OrchestrationClient] DurableOrchestrationClient starter,
+            ILogger log)
+        {
             HttpRequestMessageFeature hreqmf = new HttpRequestMessageFeature(req.HttpContext);
             HttpRequestMessage httpRequestMessage = hreqmf.HttpRequestMessage;
 
@@ -25,36 +25,27 @@ namespace ProcessVideoStarter
 
             // parse query parameter
             string video = httpRequestMessage.RequestUri.ParseQueryString()["video"];
-                
-                //..GetQueryNameValuePairs
 
-                //System.Web.HttpUtility.ParseQueryString(req.RequestUri.Query);
-
-                //req.Query[""] ()
-                //.FirstOrDefault(q => string.Compare(q.Key, "video", true) == 0)
-                //.Value;
-
-            // Get request body
             dynamic data = req;
 
-			// Set name to query string or body data
-			video = video ?? data?.video;
+            // Set name to query string or body data
+            video = video ?? data?.video;
 
-			if (video == null)
-			{
+            if (video == null)
+            {
                 var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
                 {
                     Content = new StringContent("Please pass the video location the query string or in the request body")
                 };
                 return response;
 
-			}
+            }
 
-			log.LogInformation($"About to start orchestration for {video}");
+            log.LogInformation($"About to start orchestration for {video}");
 
-			var orchestrationId = await starter.StartNewAsync("O_ProcessVideo", video);
+            var orchestrationId = await starter.StartNewAsync("O_ProcessVideo", video);
 
-			return starter.CreateCheckStatusResponse(httpRequestMessage, orchestrationId);
-		}
-	}
+            return starter.CreateCheckStatusResponse(httpRequestMessage, orchestrationId);
+        }
+    }
 }
