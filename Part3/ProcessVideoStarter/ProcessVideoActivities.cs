@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -19,7 +21,7 @@ namespace ProcessVideoStarter
             log.LogInformation($"Transcoding {inputVideo}");
             await Task.Delay(5000);
 
-            return "transcoded.mp4";
+            return $"{Path.GetFileNameWithoutExtension(inputVideo)}";
         }
 
         [FunctionName("A_ExtractThumbnail")]
@@ -29,6 +31,12 @@ namespace ProcessVideoStarter
             )
         {
             log.LogInformation($"Extracting thumbnail {inputVideo}");
+
+            if (inputVideo.Contains("error"))
+            {
+                throw new InvalidOperationException("Could not extract thumbnail.");
+            }
+
             await Task.Delay(5000);
 
             return "thumbnail.png";
@@ -45,6 +53,22 @@ namespace ProcessVideoStarter
             await Task.Delay(5000);
 
             return "withIntro.mp4";
+        }
+
+        [FunctionName("A_Cleanup")]
+        public static async Task<string> Cleanup(
+            [ActivityTrigger] string[] filesToCleanup,
+            ILogger log
+            )
+        {
+            foreach (var file in filesToCleanup.Where(f => f != null))
+            {
+                log.LogInformation($"Cleaning up \"{file}\"...");
+                var introLocation = ConfigurationManager.AppSettings["IntroLocation"];
+                await Task.Delay(5000);
+            }
+
+            return "Clean up complete.";
         }
     }
 }

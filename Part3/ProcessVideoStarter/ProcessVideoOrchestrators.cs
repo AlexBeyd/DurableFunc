@@ -9,6 +9,8 @@ namespace ProcessVideoStarter
 {
     public static class ProcessVideoOrchestrators
     {
+        static int retryCounter = 1;
+
         [FunctionName("O_ProcessVideo")]
         public static async Task<object> ProcessVideo(
             [OrchestrationTrigger] DurableOrchestrationContext ctx,
@@ -16,20 +18,46 @@ namespace ProcessVideoStarter
             )
         {
             var videoLocation = ctx.GetInput<string>();
+            string transcodedLocation = null;
+            string thumbnailLocation = null;
+            string withIntroLocation = null;            
 
-            if (!ctx.IsReplaying)
-                log.LogInformation("About to call Transcode Video...");
-            var transcodedLocation = await ctx.CallActivityAsync<string>("A_TranscodeVideo", videoLocation);
+            try
+            {
+                if (!ctx.IsReplaying)
+                    log.LogInformation("About to call Transcode Video...");
+                transcodedLocation = await ctx.CallActivityAsync<string>("A_TranscodeVideo", videoLocation);
 
-            if (!ctx.IsReplaying)
-                log.LogInformation("About to call extract thumbnail...");
-            var thumbnailLocation = await ctx.CallActivityAsync<string>("A_ExtractThumbnail", transcodedLocation);
+                //if (!ctx.IsReplaying)
+                    log.LogInformation($"About to call extract thumbnail...try {retryCounter++}");
+                thumbnailLocation = await
+                    ctx.CallActivityWithRetryAsync<string>(
+                        "A_ExtractThumbnail",
+                        new RetryOptions(TimeSpan.FromSeconds(5), 5)
+                        { Handle = ex => ex is InvalidOperationException },
+                        transcodedLocation
+                    );
 
+                if (!ctx.IsReplaying)
+                    log.LogInformation("About to call Prepend Intro...");
+                withIntroLocation = await ctx.CallActivityAsync<string>("A_PrependIntro", transcodedLocation);
+            }
+            catch (Exception ex)
+            {
+                if (!ctx.IsReplaying)
+                {
+                    log.LogInformation($"Caught an error from an activity: {ex.Message}");
+                }
 
-            if (!ctx.IsReplaying)
-                log.LogInformation("About to call Prepend Intro...");
+                await ctx.CallActivityAsync<string>
+                    ("A_Cleanup", new[] { transcodedLocation, thumbnailLocation, withIntroLocation });
 
-            var withIntroLocation = await ctx.CallActivityAsync<string>("A_PrependIntro", transcodedLocation);
+                return new
+                {
+                    Error = "Failed to process uploaded video",
+                    Message = ex.Message
+                };
+            }
 
             return new
             {
