@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -17,19 +18,20 @@ namespace ProcessVideoStarter
             ILogger log
             )
         {
-            var videoLocation = ctx.GetInput<string>();
             string transcodedLocation = null;
             string thumbnailLocation = null;
-            string withIntroLocation = null;            
+            string withIntroLocation = null;
+            bool result = false;
 
             try
             {
-                if (!ctx.IsReplaying)
-                    log.LogInformation("About to call Transcode Video...");
-                transcodedLocation = await ctx.CallActivityAsync<string>("A_TranscodeVideo", videoLocation);
+                var transcodeResults =
+                    await ctx.CallSubOrchestratorAsync<VideoFileInfo[]>("O_TranscodeVideo", ctx.GetInput<string>());
+
+                transcodedLocation = transcodeResults.OrderByDescending(res => res.Bitrate).First().Location;
 
                 //if (!ctx.IsReplaying)
-                    log.LogInformation($"About to call extract thumbnail...try {retryCounter++}");
+                //log.LogInformation($"About to call extract thumbnail...try {retryCounter++}");
                 thumbnailLocation = await
                     ctx.CallActivityWithRetryAsync<string>(
                         "A_ExtractThumbnail",
@@ -38,9 +40,19 @@ namespace ProcessVideoStarter
                         transcodedLocation
                     );
 
-                if (!ctx.IsReplaying)
-                    log.LogInformation("About to call Prepend Intro...");
+                //if (!ctx.IsReplaying)
+                //    log.LogInformation("About to call Prepend Intro...");
                 withIntroLocation = await ctx.CallActivityAsync<string>("A_PrependIntro", transcodedLocation);
+
+                result = await ctx.WaitForExternalEvent<bool>("ApprovalResult");
+                if (result)
+                {
+                    await ctx.CallActivityAsync("A_PublishVideo", ctx.GetInput<string>());
+                }
+                else
+                {
+                    await ctx.CallActivityAsync("A_RejectVideo", ctx.GetInput<string>());
+                }
             }
             catch (Exception ex)
             {
@@ -63,8 +75,33 @@ namespace ProcessVideoStarter
             {
                 Transcoded = transcodedLocation,
                 Thumbnail = thumbnailLocation,
-                WithIntro = withIntroLocation
+                WithIntro = withIntroLocation,
+                ApprovalResult = result
             };
+        }
+
+        [FunctionName("O_TranscodeVideo")]
+        public static async Task<VideoFileInfo[]> TranscodeVideo(
+            [OrchestrationTrigger] DurableOrchestrationContext ctx,
+            ILogger log
+            )
+        {
+            var videoLocation = ctx.GetInput<string>();
+
+            var bitRates = await ctx.CallActivityAsync<List<int>>("A_GetBitrates", null);
+
+            var transcodeTasks = new List<Task<VideoFileInfo>>();
+
+            foreach (var bitRate in bitRates)
+            {
+                var info = new VideoFileInfo { Location = videoLocation, Bitrate = bitRate };
+                var task = ctx.CallActivityAsync<VideoFileInfo>("A_TranscodeVideo", info);
+                transcodeTasks.Add(task);
+            }
+
+            var transcodeResults = await Task.WhenAll(transcodeTasks);
+
+            return transcodeResults;
         }
     }
 }

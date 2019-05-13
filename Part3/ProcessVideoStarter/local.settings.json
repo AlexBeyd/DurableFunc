@@ -2,8 +2,11 @@
   "IsEncrypted": false,
   "Values": {
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "AzureWebJobsDashboard": "UseDevelopmentStorage=true"
+    "AzureWebJobsDashboard": "UseDevelopmentStorage=true",
+    "TranscodeBitrates": "1000,2000,3000,4000"
   }
+
+
   //,
   //"ConnectionStrings": {
   //  "PlantaoEntities": {
