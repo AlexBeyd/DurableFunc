@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ProcessVideoStarter
@@ -50,8 +51,17 @@ namespace ProcessVideoStarter
                     VideoLocation = withIntroLocation
                 });
 
-
-                result = await ctx.WaitForExternalEvent<bool>("ApprovalResult");
+                using (var cts = new CancellationTokenSource())
+                {
+                    var timeoutAt = ctx.CurrentUtcDateTime.AddSeconds(5);
+                    var timeoutTask = ctx.CreateTimer(timeoutAt, cts.Token);
+                    var approvalTask = ctx.WaitForExternalEvent<bool>("ApprovalResult");
+                    var winner = await Task.WhenAny(timeoutTask, approvalTask);
+                    if (winner == approvalTask)
+                    {
+                        result = approvalTask.Result;
+                    }                    
+                }
 
                 if (result)
                 {
