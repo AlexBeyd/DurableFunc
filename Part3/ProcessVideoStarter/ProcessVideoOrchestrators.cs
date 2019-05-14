@@ -44,7 +44,15 @@ namespace ProcessVideoStarter
                 //    log.LogInformation("About to call Prepend Intro...");
                 withIntroLocation = await ctx.CallActivityAsync<string>("A_PrependIntro", transcodedLocation);
 
+                await ctx.CallActivityAsync("A_SendApprovalRequestEmail", new ApprovalInfo
+                {
+                    OrchestrationId = ctx.InstanceId,
+                    VideoLocation = withIntroLocation
+                });
+
+
                 result = await ctx.WaitForExternalEvent<bool>("ApprovalResult");
+
                 if (result)
                 {
                     await ctx.CallActivityAsync("A_PublishVideo", ctx.GetInput<string>());

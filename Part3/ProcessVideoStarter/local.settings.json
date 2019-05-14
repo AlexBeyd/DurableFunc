@@ -3,7 +3,11 @@
   "Values": {
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "AzureWebJobsDashboard": "UseDevelopmentStorage=true",
-    "TranscodeBitrates": "1000,2000,3000,4000"
+    "TranscodeBitrates": "1000,2000,3000,4000",
+    "ApproverEmail": "beyderman.alex@gmail.com",
+    "SenderEmail": "beyderman.alex@gmail.com",
+    "Host": "http://localhost:7071",
+    "SendGridKey": "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"
   }
 
 

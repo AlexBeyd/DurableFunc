@@ -1,6 +1,6 @@
 ﻿using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Extensions.Logging;
+using SendGrid.Helpers.Mail;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
@@ -90,9 +90,9 @@ namespace ProcessVideoStarter
         [FunctionName("A_SendApprovalRequestEmail")]
         public static void SendApprovalRequestEmail(
             [ActivityTrigger] ApprovalInfo approvalInfo,
-            [SendGrid(ApiKey = "SendGridKey")] out Mail message,
+            [SendGrid(ApiKey = "SendGridKey")] out SendGridMessage message,
             [Table("Approvals", "AzureWebJobsStorage")] out Approval approval,
-            TraceWriter log)
+            ILogger log)
         {
             var approvalCode = Guid.NewGuid().ToString("N");
             approval = new Approval
@@ -101,12 +101,12 @@ namespace ProcessVideoStarter
                 RowKey = approvalCode,
                 OrchestrationId = approvalInfo.OrchestrationId
             };
-            var approverEmail = new Email(ConfigurationManager.AppSettings["ApproverEmail"]);
-            var senderEmail = new Email(ConfigurationManager.AppSettings["SenderEmail"]);
+            var approverEmail = new EmailAddress(Environment.GetEnvironmentVariable("ApproverEmail"));
+            var senderEmail = new EmailAddress(Environment.GetEnvironmentVariable("SenderEmail"));
             var subject = "A video is awaiting approval";
 
-            log.Info($"Sending approval request for {approvalInfo.VideoLocation}");
-            var host = ConfigurationManager.AppSettings["Host"];
+            log.LogInformation($"Sending approval request for {approvalInfo.VideoLocation}");
+            var host = Environment.GetEnvironmentVariable("Host");
 
             var functionAddress = $"{host}/api/SubmitVideoApproval/{approvalCode}";
             var approvedLink = functionAddress + "?result=Approved";
@@ -115,9 +115,9 @@ namespace ProcessVideoStarter
                                + $"<a href=\"{approvedLink}\">Approve</a><br>"
                                + $"<a href=\"{rejectedLink}\">Reject</a>";
             var content = new Content("text/html", body);
-            message = new Mail(senderEmail, subject, approverEmail, content);
+            message = MailHelper.CreateSingleEmail(senderEmail, approverEmail, subject, body, body);
 
-            log.Info(body);
+            log.LogInformation(body);
         }
 
         [FunctionName("A_RejectVideo")]

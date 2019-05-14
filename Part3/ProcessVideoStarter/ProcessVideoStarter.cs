@@ -47,5 +47,29 @@ namespace ProcessVideoStarter
 
             return starter.CreateCheckStatusResponse(httpRequestMessage, orchestrationId);
         }
+
+        [FunctionName("SubmitVideoApproval")]
+        public static async Task<HttpResponseMessage> SubmitVideoApproval(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "SubmitVideoApproval/{id}")]
+            HttpRequest req,
+            [OrchestrationClient] DurableOrchestrationClient client,
+            [Table("Approvals", "Approval", "{id}", Connection = "AzureWebJobsStorage")] Approval approval,
+            ILogger log)
+        {
+            HttpRequestMessageFeature hreqmf = new HttpRequestMessageFeature(req.HttpContext);
+            HttpRequestMessage httpRequestMessage = hreqmf.HttpRequestMessage;
+
+            // nb if the approval code doesn't exist, framework just returns a 404 before we get here
+            var result = httpRequestMessage.RequestUri.ParseQueryString()["result"] == "Approved";
+
+            if (!result)
+                return httpRequestMessage.CreateResponse(HttpStatusCode.BadRequest, "Need an approval result");
+
+            log.LogWarning($"Sending approval result to {approval.OrchestrationId} of {httpRequestMessage.RequestUri.ParseQueryString()["result"]}");
+            // send the ApprovalResult external event to this orchestration
+            await client.RaiseEventAsync(approval.OrchestrationId, "ApprovalResult", result);
+
+            return httpRequestMessage.CreateResponse(HttpStatusCode.OK);
+        }
     }
 }
