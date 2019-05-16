@@ -56,7 +56,7 @@ namespace ProcessVideoStarter
             )
         {
             log.LogInformation($"Appending intro to video {inputVideo}");
-            var introLocation = ConfigurationManager.AppSettings["IntroLocation"];
+            var introLocation = Environment.GetEnvironmentVariable("IntroLocation");
             await Task.Delay(5000);
 
             return "withIntro.mp4";
@@ -71,7 +71,7 @@ namespace ProcessVideoStarter
             foreach (var file in filesToCleanup.Where(f => f != null))
             {
                 log.LogInformation($"Cleaning up \"{file}\"...");
-                var introLocation = ConfigurationManager.AppSettings["IntroLocation"];
+                var introLocation = Environment.GetEnvironmentVariable("IntroLocation");
                 await Task.Delay(5000);
             }
 
@@ -113,7 +113,8 @@ namespace ProcessVideoStarter
             var rejectedLink = functionAddress + "?result=Rejected";
             var body = $"Please review {approvalInfo.VideoLocation}<br>"
                                + $"<a href=\"{approvedLink}\">Approve</a><br>"
-                               + $"<a href=\"{rejectedLink}\">Reject</a>";
+                               + $"<a href=\"{rejectedLink}\">Reject</a>"
+                               +$"<div>Approval timeout: {Environment.GetEnvironmentVariable("ApprovalTimeout")} seconds</div>";
             var content = new Content("text/html", body);
             message = MailHelper.CreateSingleEmail(senderEmail, approverEmail, subject, body, body);
 
@@ -138,6 +139,14 @@ namespace ProcessVideoStarter
         {
             log.LogInformation($"Video {location} published");
             await Task.Delay(1000);
+        }
+
+        [FunctionName("A_PeriodicActivity")]
+        public static void PeriodicActivity(
+            [ActivityTrigger] int timesRun,
+            ILogger log)
+        {
+            log.LogWarning($"Running the periodic activity, times run = {timesRun}");
         }
     }
 }

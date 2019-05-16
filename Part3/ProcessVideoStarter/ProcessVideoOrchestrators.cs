@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -53,7 +54,7 @@ namespace ProcessVideoStarter
 
                 using (var cts = new CancellationTokenSource())
                 {
-                    var timeoutAt = ctx.CurrentUtcDateTime.AddSeconds(5);
+                    var timeoutAt = ctx.CurrentUtcDateTime.AddSeconds(int.Parse(Environment.GetEnvironmentVariable("ApprovalTimeout")));
                     var timeoutTask = ctx.CreateTimer(timeoutAt, cts.Token);
                     var approvalTask = ctx.WaitForExternalEvent<bool>("ApprovalResult");
                     var winner = await Task.WhenAny(timeoutTask, approvalTask);
@@ -120,6 +121,23 @@ namespace ProcessVideoStarter
             var transcodeResults = await Task.WhenAll(transcodeTasks);
 
             return transcodeResults;
+        }
+
+        [FunctionName("O_PeriodicTask")]
+        public static async Task<int> PeriodicTask(
+            [OrchestrationTrigger] DurableOrchestrationContext ctx,
+            ILogger log)
+        {
+            var timesRun = ctx.GetInput<int>();
+
+            timesRun++;
+            if (!ctx.IsReplaying)
+                log.LogInformation($"Starting the PeriodicTask activity {ctx.InstanceId}, {timesRun}");
+            await ctx.CallActivityAsync("A_PeriodicActivity", timesRun);
+            var nextRun = ctx.CurrentUtcDateTime.AddSeconds(5);
+            await ctx.CreateTimer(nextRun, CancellationToken.None);
+            ctx.ContinueAsNew(timesRun);
+            return timesRun;
         }
     }
 }

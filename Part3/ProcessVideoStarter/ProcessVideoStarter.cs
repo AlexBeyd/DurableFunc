@@ -14,17 +14,17 @@ namespace ProcessVideoStarter
     {
         [FunctionName("ProcessVideoStarter")]
         public static async Task<HttpResponseMessage> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequestMessage req,
             [OrchestrationClient] DurableOrchestrationClient starter,
             ILogger log)
         {
-            HttpRequestMessageFeature hreqmf = new HttpRequestMessageFeature(req.HttpContext);
-            HttpRequestMessage httpRequestMessage = hreqmf.HttpRequestMessage;
+            //HttpRequestMessageFeature hreqmf = new HttpRequestMessageFeature(req.HttpContext);
+            //HttpRequestMessage httpRequestMessage = hreqmf.HttpRequestMessage;
 
             log.LogInformation($"C# HTTP trigger function processed a request.");
 
             // parse query parameter
-            string video = httpRequestMessage.RequestUri.ParseQueryString()["video"];
+            string video = req.RequestUri.ParseQueryString()["video"];
 
             dynamic data = req;
 
@@ -45,31 +45,42 @@ namespace ProcessVideoStarter
 
             var orchestrationId = await starter.StartNewAsync("O_ProcessVideo", video);
 
-            return starter.CreateCheckStatusResponse(httpRequestMessage, orchestrationId);
+            return starter.CreateCheckStatusResponse(req, orchestrationId);
         }
 
         [FunctionName("SubmitVideoApproval")]
         public static async Task<HttpResponseMessage> SubmitVideoApproval(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "SubmitVideoApproval/{id}")]
-            HttpRequest req,
+            HttpRequestMessage req,
             [OrchestrationClient] DurableOrchestrationClient client,
             [Table("Approvals", "Approval", "{id}", Connection = "AzureWebJobsStorage")] Approval approval,
             ILogger log)
         {
-            HttpRequestMessageFeature hreqmf = new HttpRequestMessageFeature(req.HttpContext);
-            HttpRequestMessage httpRequestMessage = hreqmf.HttpRequestMessage;
+            //HttpRequestMessageFeature hreqmf = new HttpRequestMessageFeature(req.HttpContext);
+            //HttpRequestMessage httpRequestMessage = hreqmf.HttpRequestMessage;
 
             // nb if the approval code doesn't exist, framework just returns a 404 before we get here
-            var result = httpRequestMessage.RequestUri.ParseQueryString()["result"] == "Approved";
+            var result = req.RequestUri.ParseQueryString()["result"] == "Approved";
 
             if (!result)
-                return httpRequestMessage.CreateResponse(HttpStatusCode.BadRequest, "Need an approval result");
+                return req.CreateResponse(HttpStatusCode.BadRequest, "Need an approval result");
 
-            log.LogWarning($"Sending approval result to {approval.OrchestrationId} of {httpRequestMessage.RequestUri.ParseQueryString()["result"]}");
+            log.LogWarning($"Sending approval result to {approval.OrchestrationId} of {req.RequestUri.ParseQueryString()["result"]}");
             // send the ApprovalResult external event to this orchestration
             await client.RaiseEventAsync(approval.OrchestrationId, "ApprovalResult", result);
 
-            return httpRequestMessage.CreateResponse(HttpStatusCode.OK);
+            return req.CreateResponse(HttpStatusCode.OK);
+        }
+
+        [FunctionName("StartPeriodicTask")]
+        public static async Task<HttpResponseMessage> StartPeriodicTask(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = null)]
+            HttpRequestMessage req,
+            [OrchestrationClient] DurableOrchestrationClient client,
+            ILogger log)
+        {
+            var instanceId = await client.StartNewAsync("O_PeriodicTask", 0);
+            return client.CreateCheckStatusResponse(req, instanceId);
         }
     }
 }

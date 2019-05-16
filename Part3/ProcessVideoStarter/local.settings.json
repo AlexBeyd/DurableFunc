@@ -7,15 +7,7 @@
     "ApproverEmail": "beyderman.alex@gmail.com",
     "SenderEmail": "beyderman.alex@gmail.com",
     "Host": "http://localhost:7071",
-    "SendGridKey": "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"
+    "SendGridKey": "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",
+    "ApprovalTimeout" : "30"
   }
-
-
-  //,
-  //"ConnectionStrings": {
-  //  "PlantaoEntities": {
-  //    "ConnectionString": "CENSURED",
-  //    "ProviderName": "System.Data.EntityClient"
-  //  }
-  //}
 }
